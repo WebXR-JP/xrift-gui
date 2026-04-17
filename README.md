@@ -1,6 +1,6 @@
 # XRift GUI Tool
 
-`guitool.md` の要件に沿って、XRift の初期セットアップからアップロードまでを GUI で実行する Electron ツールです。
+XRift の初期セットアップからアップロードまでを GUI で実行する Electron ツールです。
 
 ## セットアップ
 
@@ -25,6 +25,12 @@ npm run dev:electron
 
 ```bash
 npm run build
+```
+
+インストールパッケージのビルド
+
+```bash
+npm run dist
 ```
 
 ## 実装済みフロー
