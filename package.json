@@ -1,0 +1,71 @@
+{
+  "name": "xrift-gui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "GUI tool for XRift setup/create/login/upload flow",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "npm run dev:electron",
+    "dev:renderer": "cross-env BROWSER=none vite --host 127.0.0.1 --port 5180 --strictPort",
+    "dev:electron": "concurrently -k \"npm:dev:renderer\" \"npm:dev:electron:main\"",
+    "dev:electron:main": "npm run build:electron && wait-on tcp:5180 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5180 electron dist-electron/main.js",
+    "build": "npm run build:renderer && npm run build:electron",
+    "build:renderer": "vite build",
+    "build:electron": "tsc -p tsconfig.node.json && cp electron/preload.cjs dist-electron/preload.cjs",
+    "preview": "vite preview",
+    "start:built": "electron dist-electron/main.js",
+    "dist": "npm run build && electron-builder",
+    "dist:dir": "npm run build && electron-builder --dir"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.0",
+    "cross-env": "^7.0.3",
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.xrift.gui",
+    "productName": "XRift GUI Tool",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "dist-electron/**",
+      "package.json"
+    ],
+    "asar": true,
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.developer-tools"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "zip"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "tar.gz"
+      ],
+      "category": "Development"
+    }
+  }
+}

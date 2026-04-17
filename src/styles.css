@@ -1,0 +1,135 @@
+:root {
+  font-family: "IBM Plex Sans", "Noto Sans JP", sans-serif;
+  color: #1f2933;
+  background: radial-gradient(circle at top left, #c5d8ff 0%, #e8eefb 40%, #f6f8fd 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.layout {
+  height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.panel {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #d3dce9;
+  border-radius: 14px;
+  padding: 16px;
+  overflow: auto;
+  min-height: 0;
+}
+
+.lead {
+  margin-top: 0;
+  color: #3d4a5b;
+}
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.step-card {
+  border: 1px solid #dae3f0;
+  border-radius: 10px;
+  padding: 10px;
+  background: #f8fbff;
+}
+
+.step-card h3 {
+  margin: 0 0 6px 0;
+  font-size: 14px;
+}
+
+.step-card p {
+  margin: 0;
+  font-size: 12px;
+  color: #4e5d70;
+}
+
+.actions h2 {
+  font-size: 14px;
+  margin: 14px 0 8px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+input,
+textarea,
+button {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid #c8d3e2;
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
+textarea {
+  resize: vertical;
+}
+
+button {
+  background: #0e66f6;
+  color: white;
+  border-color: #0e66f6;
+  cursor: pointer;
+  margin-top: 8px;
+}
+
+button:disabled {
+  background: #97b6ef;
+  border-color: #97b6ef;
+  cursor: not-allowed;
+}
+
+.status-list {
+  margin: 10px 0;
+  padding-left: 18px;
+}
+
+.status {
+  margin: 8px 0;
+  color: #0f4c2b;
+}
+
+.log-panel pre {
+  margin: 0;
+  padding: 12px;
+  border-radius: 10px;
+  background: #0f1720;
+  color: #d6e0ea;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: "IBM Plex Mono", "SFMono-Regular", Menlo, monospace;
+  font-size: 12px;
+}
+
+@media (max-width: 980px) {
+  .layout {
+    height: auto;
+    min-height: 100vh;
+    grid-template-columns: 1fr;
+    overflow: visible;
+  }
+
+  .steps {
+    grid-template-columns: 1fr;
+  }
+}
