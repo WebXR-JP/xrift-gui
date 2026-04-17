@@ -14,6 +14,15 @@ type CommandResult = {
   stderr: string
 }
 
+type ProjectSelectionResult = {
+  isProject: boolean
+  projectPath: string
+  projectName: string
+  workspacePath: string
+  worldTitle: string
+  worldDescription: string
+}
+
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const devServerUrl = process.env.VITE_DEV_SERVER_URL
@@ -104,7 +113,7 @@ const emitLocalDevStatus = (running: boolean) => {
 const runCommand = async (
   command: string,
   args: string[],
-  options: { cwd?: string; commandId: string }
+  options: { cwd?: string; commandId: string; autoEnterOnPrompt?: boolean }
 ): Promise<CommandResult> => {
   const commandEnv = await getCommandEnv()
   return new Promise((resolve) => {
@@ -116,17 +125,40 @@ const runCommand = async (
 
     let stdout = ''
     let stderr = ''
+    let autoEnterCount = 0
+    let promptBuffer = ''
+
+    const autoEnterIfPrompt = (text: string) => {
+      if (!options.autoEnterOnPrompt || !child.stdin.writable || autoEnterCount >= 12) {
+        return
+      }
+      const sanitizedText = stripAnsiEscapeSequences(text)
+      promptBuffer = `${promptBuffer}${sanitizedText}`.slice(-700)
+      const matches = promptBuffer.match(/World\s+(?:title|description)/gi) ?? []
+      const requiredEnterCount = matches.length
+      if (requiredEnterCount <= autoEnterCount) {
+        return
+      }
+      const pending = Math.min(requiredEnterCount - autoEnterCount, 12 - autoEnterCount)
+      for (let i = 0; i < pending; i += 1) {
+        child.stdin.write('\n')
+        autoEnterCount += 1
+        emitLog(options.commandId, 'system', `[auto-enter] sent \\n (${autoEnterCount})`)
+      }
+    }
 
     child.stdout.on('data', (chunk: Buffer) => {
       const text = chunk.toString()
       stdout += text
       emitLog(options.commandId, 'stdout', text)
+      autoEnterIfPrompt(text)
     })
 
     child.stderr.on('data', (chunk: Buffer) => {
       const text = chunk.toString()
       stderr += text
       emitLog(options.commandId, 'stderr', text)
+      autoEnterIfPrompt(text)
     })
 
     child.on('error', (error) => {
@@ -192,6 +224,42 @@ ipcMain.handle('dialog:select-directory', async () => {
   }
   return result.filePaths[0]
 })
+
+ipcMain.handle(
+  'xrift:inspect-project-directory',
+  async (_event, payload: { directoryPath: string }): Promise<ProjectSelectionResult> => {
+    const projectPath = payload.directoryPath
+    const projectName = path.basename(projectPath)
+    const workspacePath = path.dirname(projectPath)
+    const configPath = path.join(projectPath, 'xrift.json')
+
+    try {
+      const raw = await fs.readFile(configPath, 'utf-8')
+      const json = JSON.parse(raw)
+      const world = json.world && typeof json.world === 'object' ? json.world : {}
+      const worldTitle = typeof world.title === 'string' ? world.title : ''
+      const worldDescription = typeof world.description === 'string' ? world.description : ''
+
+      return {
+        isProject: true,
+        projectPath,
+        projectName,
+        workspacePath,
+        worldTitle,
+        worldDescription
+      }
+    } catch {
+      return {
+        isProject: false,
+        projectPath,
+        projectName,
+        workspacePath,
+        worldTitle: '',
+        worldDescription: ''
+      }
+    }
+  }
+)
 
 ipcMain.handle('xrift:check-environment', async () => {
   const nodeVersion = await runVersionCommand('node', ['-v'])
@@ -278,9 +346,10 @@ ipcMain.handle('xrift:whoami', async () => {
 ipcMain.handle(
   'xrift:upload-world',
   async (_event, payload: { projectPath: string; commandId: string }) => {
-    return runCommand('xrift', ['upload'], {
+    return runCommand('xrift', ['upload', 'world'], {
       cwd: payload.projectPath,
-      commandId: payload.commandId
+      commandId: payload.commandId,
+      autoEnterOnPrompt: true
     })
   }
 )

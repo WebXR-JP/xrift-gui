@@ -2,6 +2,8 @@ const { contextBridge, ipcRenderer } = require('electron')
 
 contextBridge.exposeInMainWorld('xriftApi', {
   selectDirectory: () => ipcRenderer.invoke('dialog:select-directory'),
+  inspectProjectDirectory: (directoryPath) =>
+    ipcRenderer.invoke('xrift:inspect-project-directory', { directoryPath }),
   checkEnvironment: () => ipcRenderer.invoke('xrift:check-environment'),
   installCli: (commandId) => ipcRenderer.invoke('xrift:install-cli', { commandId }),
   createWorld: (payload) => ipcRenderer.invoke('xrift:create-world', payload),

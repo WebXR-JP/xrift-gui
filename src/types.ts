@@ -23,8 +23,18 @@ export type CommandLog = {
   at: string
 }
 
+export type ProjectSelection = {
+  isProject: boolean
+  projectPath: string
+  projectName: string
+  workspacePath: string
+  worldTitle: string
+  worldDescription: string
+}
+
 export type XriftApi = {
   selectDirectory: () => Promise<string>
+  inspectProjectDirectory: (directoryPath: string) => Promise<ProjectSelection>
   checkEnvironment: () => Promise<EnvironmentStatus>
   installCli: (commandId: string) => Promise<CommandResult>
   createWorld: (payload: {

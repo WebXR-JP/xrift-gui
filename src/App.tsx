@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
-import type { CommandLog, EnvironmentStatus } from './types'
+import type { CommandLog, EnvironmentStatus, ProjectSelection } from './types'
 
 type Step = {
   key: string
@@ -21,7 +21,7 @@ const STEPS: Step[] = [
   },
   {
     key: 'create',
-    title: '3. テンプレート作成',
+    title: '3. ワールドテンプレート作成',
     description: 'xrift create world で新規ワールドを作成'
   },
   {
@@ -31,18 +31,18 @@ const STEPS: Step[] = [
   },
   {
     key: 'config',
-    title: '5. xrift.json設定',
-    description: 'world.title / world.description を反映'
+    title: '5. 公開用情報設定',
+    description: 'xrift.jsonのworld.title / world.description を反映'
   },
   {
     key: 'login',
-    title: '6. ログイン',
+    title: '6. Xriftログイン',
     description: 'xrift login 実行後、whoamiで確認'
   },
   {
     key: 'upload',
-    title: '7. アップロード',
-    description: 'xrift upload でサーバーへ反映'
+    title: '7. ワールドアップロード',
+    description: 'xrift upload world でサーバーへ反映'
   }
 ]
 
@@ -114,9 +114,18 @@ export const App = () => {
   const selectWorkspace = async () => {
     const selected = await window.xriftApi.selectDirectory()
     if (selected) {
-      setWorkspacePath(selected)
-      if (!projectPath) {
-        setProjectPath(`${selected}/${projectName}`)
+      const selection: ProjectSelection = await window.xriftApi.inspectProjectDirectory(selected)
+      if (selection.isProject) {
+        setWorkspacePath(selection.workspacePath)
+        setProjectName(selection.projectName)
+        setProjectPath(selection.projectPath)
+        setTitle(selection.worldTitle)
+        setDescription(selection.worldDescription)
+      } else {
+        setWorkspacePath(selected)
+        if (!projectPath) {
+          setProjectPath(`${selected}/${projectName}`)
+        }
       }
     }
   }
@@ -196,13 +205,28 @@ export const App = () => {
   }
 
   const login = async () => {
-    const commandId = createCommandId('login')
+    const checkCommandId = createCommandId('whoami-check')
     setBusy(true)
-    appendSystemLog(setLogs, commandId, '$ xrift login')
     try {
-      await window.xriftApi.login(commandId)
+      appendSystemLog(setLogs, checkCommandId, '$ xrift whoami')
+      const current = await window.xriftApi.whoami()
+      if (current.ok && current.account) {
+        setLoginAccount(current.account)
+        appendSystemLog(
+          setLogs,
+          checkCommandId,
+          `[skip] already logged in as ${current.account}`
+        )
+        return
+      }
+
+      const loginCommandId = createCommandId('login')
+      appendSystemLog(setLogs, loginCommandId, '$ xrift login')
+      await window.xriftApi.login(loginCommandId)
       const whoami = await window.xriftApi.whoami()
-      setLoginAccount(whoami.account)
+      if (whoami.ok && whoami.account) {
+        setLoginAccount(whoami.account)
+      }
     } finally {
       setBusy(false)
     }
@@ -214,7 +238,7 @@ export const App = () => {
     }
     const commandId = createCommandId('upload')
     setBusy(true)
-    appendSystemLog(setLogs, commandId, '$ xrift upload')
+    appendSystemLog(setLogs, commandId, '$ xrift upload world')
     try {
       await window.xriftApi.uploadWorld({ projectPath, commandId })
     } finally {
@@ -284,17 +308,13 @@ export const App = () => {
           <button disabled={busy || !projectPath || localDevRunning} onClick={startLocalDev}>
             npm run dev を開始
           </button>
+          <p>ここでWorld.tsを編集してワールドを作ってみましょう！</p>
           <button disabled={busy || !localDevRunning} onClick={stopLocalDev}>
             ローカル実行を停止
           </button>
           {localDevRunning && <p className="status">ローカル実行中</p>}
 
-          <h2>5) xrift.json設定</h2>
-          <input
-            value={projectPath}
-            onChange={(e) => setProjectPath(e.target.value)}
-            placeholder="project path"
-          />
+          <h2>5) 公開用情報設定</h2>
           <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="title" />
           <textarea
             value={description}
@@ -308,13 +328,13 @@ export const App = () => {
 
           <h2>6) ログイン</h2>
           <button disabled={busy} onClick={login}>
-            xrift login
+            xrift login（未ログイン時のみ）
           </button>
           {loginAccount && <p className="status">ログイン済み: {loginAccount}</p>}
 
           <h2>7) アップロード</h2>
           <button disabled={busy || !projectPath} onClick={upload}>
-            xrift upload
+            xrift upload world
           </button>
         </div>
       </section>
