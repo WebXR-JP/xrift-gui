@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import type { CommandLog, EnvironmentStatus, ProjectSelection } from './types'
 
@@ -75,6 +75,7 @@ export const App = () => {
   const [loginAccount, setLoginAccount] = useState('')
   const [localDevRunning, setLocalDevRunning] = useState(false)
   const [busy, setBusy] = useState(false)
+  const logPanelRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
     const unsub = window.xriftApi.onCommandLog((log) => {
@@ -96,10 +97,27 @@ export const App = () => {
     })()
   }, [])
 
-  const logText = useMemo(
-    () => logs.map((x) => `[${x.stream}] ${x.message}`).join(''),
-    [logs]
-  )
+  useEffect(() => {
+    if (!logPanelRef.current) {
+      return
+    }
+    logPanelRef.current.scrollTop = logPanelRef.current.scrollHeight
+  }, [logs])
+
+  const logLines = useMemo(() => {
+    return logs.flatMap((x, index) => {
+      const normalized = `[${x.stream}] ${x.message}`.replace(/\r\n/g, '\n')
+      const lines = normalized.split('\n')
+      if (lines[lines.length - 1] === '') {
+        lines.pop()
+      }
+      return lines.map((line, lineIndex) => ({
+        key: `${x.commandId}-${x.at}-${index}-${lineIndex}`,
+        text: line,
+        isError: /error/i.test(line)
+      }))
+    })
+  }, [logs])
 
   const checkEnvironment = async () => {
     setBusy(true)
@@ -326,7 +344,7 @@ export const App = () => {
             xrift.jsonに保存
           </button>
 
-          <h2>6) ログイン</h2>
+          <h2>6) XRIFTログイン</h2>
           <button disabled={busy} onClick={login}>
             xrift login（未ログイン時のみ）
           </button>
@@ -339,9 +357,18 @@ export const App = () => {
         </div>
       </section>
 
-      <section className="panel log-panel">
+      <section ref={logPanelRef} className="panel log-panel">
         <h2>Command Logs</h2>
-        <pre>{logText || 'No logs yet.'}</pre>
+        <pre>
+          {logLines.length === 0
+            ? 'No logs yet.'
+            : logLines.map((line) => (
+                <span key={line.key} className={line.isError ? 'log-line-error' : undefined}>
+                  {line.text}
+                  {'\n'}
+                </span>
+              ))}
+        </pre>
       </section>
     </div>
   )

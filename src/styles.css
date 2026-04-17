@@ -121,6 +121,10 @@ button:disabled {
   font-size: 12px;
 }
 
+.log-line-error {
+  color: #ff6b6b;
+}
+
 @media (max-width: 980px) {
   .layout {
     height: auto;

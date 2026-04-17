@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import fs from 'node:fs/promises'
+import net from 'node:net'
 import { spawn } from 'node:child_process'
 import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 
@@ -108,6 +109,61 @@ const emitLocalDevStatus = (running: boolean) => {
     return
   }
   mainWindow.webContents.send('xrift:local-dev-status', { running })
+}
+
+const wait = async (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
+
+const isTcpPortOpen = async (host: string, port: number): Promise<boolean> =>
+  new Promise((resolve) => {
+    const socket = net.createConnection({ host, port })
+    let settled = false
+
+    const done = (ok: boolean) => {
+      if (settled) {
+        return
+      }
+      settled = true
+      socket.destroy()
+      resolve(ok)
+    }
+
+    socket.setTimeout(700)
+    socket.once('connect', () => done(true))
+    socket.once('timeout', () => done(false))
+    socket.once('error', () => done(false))
+  })
+
+const waitForLocalDevServer = async (
+  host: string,
+  ports: number[],
+  isRunning: () => boolean
+): Promise<number | null> => {
+  const maxAttempts = 80
+  const intervalMs = 400
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    if (!isRunning()) {
+      return null
+    }
+    for (const port of ports) {
+      if (await isTcpPortOpen(host, port)) {
+        return port
+      }
+    }
+    await wait(intervalMs)
+  }
+  return null
+}
+
+const extractLocalDevUrl = (text: string): string | null => {
+  const sanitized = stripAnsiEscapeSequences(text)
+  const match = sanitized.match(/https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0):5173(?:\/\S*)?/i)
+  if (!match) {
+    return null
+  }
+  return match[0].replace('0.0.0.0', 'localhost')
 }
 
 const runCommand = async (
@@ -373,14 +429,46 @@ ipcMain.handle(
     localDevCommandId = payload.commandId
     emitLog(payload.commandId, 'system', '$ npm run dev\n')
     emitLocalDevStatus(true)
-    void shell.openExternal('http://localhost:5173')
+    let browserOpened = false
+
+    const openBrowserOnce = (url: string, source: 'output' | 'fallback') => {
+      if (browserOpened || localDevProcess !== child) {
+        return
+      }
+      browserOpened = true
+      emitLog(payload.commandId, 'system', `[local-dev] opening browser ${url} (${source})\n`)
+      void shell.openExternal(url)
+    }
+
+    const detectAndOpenFromOutput = (text: string) => {
+      const url = extractLocalDevUrl(text)
+      if (!url) {
+        return
+      }
+      openBrowserOnce(url, 'output')
+    }
+
+    void (async () => {
+      const host = '127.0.0.1'
+      emitLog(payload.commandId, 'system', '[local-dev] waiting for server startup...\n')
+      const fallbackPort = await waitForLocalDevServer(host, [5173], () => localDevProcess === child)
+      if (fallbackPort === null) {
+        emitLog(payload.commandId, 'system', '[local-dev] server did not become ready\n')
+        return
+      }
+      openBrowserOnce('http://localhost:5173', 'fallback')
+    })()
 
     child.stdout.on('data', (chunk: Buffer) => {
-      emitLog(payload.commandId, 'stdout', chunk.toString())
+      const text = chunk.toString()
+      emitLog(payload.commandId, 'stdout', text)
+      detectAndOpenFromOutput(text)
     })
 
     child.stderr.on('data', (chunk: Buffer) => {
-      emitLog(payload.commandId, 'stderr', chunk.toString())
+      const text = chunk.toString()
+      emitLog(payload.commandId, 'stderr', text)
+      detectAndOpenFromOutput(text)
     })
 
     child.on('error', (error) => {
