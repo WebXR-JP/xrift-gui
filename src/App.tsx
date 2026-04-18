@@ -73,9 +73,27 @@ export const App = () => {
   const [title, setTitle] = useState('サンプルワールド')
   const [description, setDescription] = useState('XRift GUI Toolで作成したワールド')
   const [loginAccount, setLoginAccount] = useState('')
+  const [loginDisplayName, setLoginDisplayName] = useState('')
   const [localDevRunning, setLocalDevRunning] = useState(false)
   const [busy, setBusy] = useState(false)
   const logPanelRef = useRef<HTMLElement | null>(null)
+
+  const extractUserId = (account: string): string => {
+    const match = account.match(/^.*user\s*id\s*[:=]\s*([^\s]+).*$/im)
+    return match?.[1]?.trim() ?? ''
+  }
+
+  const extractDisplayName = (account: string): string => {
+    const match = account.match(/^.*display\s*name\s*[:=]\s*(.+).*$/im)
+    return match?.[1]?.trim() ?? ''
+  }
+
+  const isLoggedInAccount = (ok: boolean, account: string) => {
+    if (!ok || !account) {
+      return false
+    }
+    return extractUserId(account) !== ''
+  }
 
   useEffect(() => {
     const unsub = window.xriftApi.onCommandLog((log) => {
@@ -228,12 +246,15 @@ export const App = () => {
     try {
       appendSystemLog(setLogs, checkCommandId, '$ xrift whoami')
       const current = await window.xriftApi.whoami()
-      if (current.ok && current.account) {
-        setLoginAccount(current.account)
+      if (isLoggedInAccount(current.ok, current.account)) {
+        const userId = extractUserId(current.account)
+        const displayName = extractDisplayName(current.account)
+        setLoginAccount(userId)
+        setLoginDisplayName(displayName)
         appendSystemLog(
           setLogs,
           checkCommandId,
-          `[skip] already logged in as ${current.account}`
+          `[skip] already logged in as ${userId}${displayName ? ` (${displayName})` : ''}`
         )
         return
       }
@@ -242,8 +263,12 @@ export const App = () => {
       appendSystemLog(setLogs, loginCommandId, '$ xrift login')
       await window.xriftApi.login(loginCommandId)
       const whoami = await window.xriftApi.whoami()
-      if (whoami.ok && whoami.account) {
-        setLoginAccount(whoami.account)
+      if (isLoggedInAccount(whoami.ok, whoami.account)) {
+        setLoginAccount(extractUserId(whoami.account))
+        setLoginDisplayName(extractDisplayName(whoami.account))
+      } else {
+        setLoginAccount('')
+        setLoginDisplayName('')
       }
     } finally {
       setBusy(false)
@@ -348,7 +373,11 @@ export const App = () => {
           <button disabled={busy} onClick={login}>
             xrift login（未ログイン時のみ）
           </button>
-          {loginAccount && <p className="status">ログイン済み: {loginAccount}</p>}
+          {loginAccount && (
+            <p className="status">
+              ログイン済み: {loginDisplayName}　({loginAccount})
+            </p>
+          )}
 
           <h2>7) アップロード</h2>
           <button disabled={busy || !projectPath} onClick={upload}>
